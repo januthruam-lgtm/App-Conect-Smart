@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<title>Smartwatch BLE</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #181b22;
+    --card2: #20242d;
+    --txt: #e8eaf0;
+    --mut: #8b92a5;
+    --acc: #4f8cff;
+    --ok: #3ddc84;
+    --warn: #ffb020;
+    --err: #ff5c6c;
+    --bd: #2a2f3a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--txt);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 16px; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 14px 14px 60px; }
+  h1 { font-size: 20px; margin: 6px 0 2px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 14px; }
+  .card { background: var(--card); border: 1px solid var(--bd); border-radius: 14px;
+    padding: 14px; margin-bottom: 12px; }
+  .card h2 { font-size: 15px; margin: 0 0 10px; color: var(--txt); }
+  label { display: block; font-size: 12px; color: var(--mut); margin: 8px 0 4px; }
+  input[type=text], input[type=password], textarea {
+    width: 100%; background: var(--card2); color: var(--txt); border: 1px solid var(--bd);
+    border-radius: 10px; padding: 12px; font-size: 15px; font-family: inherit; }
+  textarea { min-height: 80px; resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  button {
+    background: var(--acc); color: #fff; border: 0; border-radius: 10px; padding: 12px 14px;
+    font-size: 15px; font-weight: 600; cursor: pointer; min-height: 46px; }
+  button.sec { background: var(--card2); color: var(--txt); border: 1px solid var(--bd); }
+  button.warn { background: var(--warn); color: #1b1300; }
+  button.danger { background: var(--err); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .row > button { flex: 1 1 auto; }
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--err); }
+  .dot.conectando { background: var(--warn); animation: pulse 1s infinite; }
+  .dot.conectado { background: var(--ok); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric { background: var(--card2); border-radius: 12px; padding: 12px; text-align: center; }
+  .metric .v { font-size: 28px; font-weight: 700; }
+  .metric .l { font-size: 12px; color: var(--mut); }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
+  .check input { width: 20px; height: 20px; }
+  .svc { border: 1px solid var(--bd); border-radius: 12px; padding: 10px; margin-top: 10px; background: var(--card2); }
+  .svc .t { font-size: 12px; color: var(--acc); word-break: break-all; font-family: ui-monospace, Menlo, monospace; }
+  .chr { border-top: 1px dashed var(--bd); margin-top: 10px; padding-top: 10px; }
+  .chr .u { font-size: 12px; word-break: break-all; font-family: ui-monospace, Menlo, monospace; }
+  .chr .p { font-size: 11px; color: var(--mut); margin: 4px 0; }
+  .chr .row button { min-height: 38px; font-size: 13px; padding: 8px 10px; }
+  #log { background: #0a0c10; border: 1px solid var(--bd); border-radius: 10px; padding: 10px;
+    height: 280px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  #log div { padding: 3px 0; border-bottom: 1px solid #14171d; word-break: break-all; }
+  .tx { color: var(--warn); } .rx { color: var(--ok); } .info { color: var(--mut); } .erro { color: var(--err); }
+  .aviso { background: #2b2210; border: 1px solid #5a4510; color: #ffd98a; padding: 10px;
+    border-radius: 10px; font-size: 13px; margin-bottom: 12px; display: none; }
+  #respostaIA { white-space: pre-wrap; background: var(--card2); border-radius: 10px; padding: 12px;
+    margin-top: 10px; font-size: 14px; display: none; }
+  small { color: var(--mut); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>⌚ Smartwatch BLE</h1>
+  <div class="sub">Conecte, explore e teste comandos Bluetooth Low Energy do seu relógio.</div>
+
+  <div id="avisoSuporte" class="aviso">
+    Este navegador não suporta Web Bluetooth. Abra esta página no Google Chrome para Android (via HTTPS).
+  </div>
+
+  <!-- CONEXÃO -->
+  <div class="card">
+    <h2>1. Conexão</h2>
+    <div class="status"><span id="dot" class="dot"></span><span id="statusTxt">Desconectado</span></div>
+    <div id="nomeDisp" class="sub" style="margin:6px 0 0"></div>
+
+    <label for="filtroNome">Filtrar por nome (opcional, ex.: HryFine, Ultra)</label>
+    <input type="text" id="filtroNome" placeholder="Deixe vazio para listar todos os dispositivos">
+
+    <label for="extraUuids">UUIDs extras de serviço (opcional, separados por vírgula)</label>
+    <input type="text" id="extraUuids" placeholder="ex.: fee7, ffe0, 6e400001-b5a3-f393-e0a9-e50e24dcca9e">
+    <small>O Chrome só mostra os serviços que forem declarados antes de buscar. Se o seu relógio usar um UUID que não está na lista padrão, adicione aqui.</small>
+
+    <div class="check">
+      <input type="checkbox" id="autoReconectar" checked>
+      <label for="autoReconectar" style="margin:0;font-size:14px;color:var(--txt)">Reconectar automaticamente</label>
+    </div>
+
+    <div class="row">
+      <button id="btnBuscar">🔍 Buscar relógio</button>
+      <button id="btnReconectar" class="sec" disabled>🔄 Reconectar</button>
+      <button id="btnDesconectar" class="danger" disabled>Desconectar</button>
+    </div>
+  </div>
+
+  <!-- DADOS -->
+  <div class="card">
+    <h2>2. Dados do relógio</h2>
+    <div class="grid">
+      <div class="metric"><div class="v" id="valBateria">--</div><div class="l">🔋 Bateria (%)</div></div>
+      <div class="metric"><div class="v" id="valFC">--</div><div class="l">❤️ Batimentos (bpm)</div></div>
+    </div>
+    <small>Aparecem apenas se o relógio expuser os serviços padrão de bateria e frequência cardíaca.</small>
+  </div>
+
+  <!-- SERVIÇOS -->
+  <div class="card">
+    <h2>3. Serviços e características</h2>
+    <div id="servicos"><small>Conecte-se a um relógio para listar os serviços.</small></div>
+  </div>
+
+  <!-- ENVIO -->
+  <div class="card">
+    <h2>4. Enviar bytes (HEX)</h2>
+    <div class="sub" style="margin:0 0 6px">Característica selecionada: <b id="charSel">nenhuma</b></div>
+    <label for="hexEnvio">Bytes em hexadecimal (ex.: 01 0A FF)</label>
+    <input type="text" id="hexEnvio" placeholder="01 0A FF">
+    <div class="row">
+      <button id="btnEnviar" disabled>📤 Enviar</button>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="card">
+    <h2>5. Log em tempo real</h2>
+    <div id="log"></div>
+    <div class="row">
+      <button id="btnCopiar" class="sec">📋 Copiar</button>
+      <button id="btnBaixar" class="sec">⬇️ Baixar .txt</button>
+      <button id="btnLimpar" class="sec">🗑️ Limpar</button>
+    </div>
+  </div>
+
+  <!-- IA -->
+  <div class="card">
+    <h2>6. Análise com IA (opcional)</h2>
+    <label for="apiKey">Chave de API do Google AI Studio</label>
+    <input type="password" id="apiKey" placeholder="Cole sua API Key (fica só na memória desta página)" autocomplete="off">
+    <label for="modeloIA">Modelo</label>
+    <input type="text" id="modeloIA" value="gemini-2.5-flash">
+    <div class="row">
+      <button id="btnIA" class="warn">🤖 Analisar log com Gemini</button>
+    </div>
+    <div id="respostaIA"></div>
+    <small>Não salve sua chave dentro do código nem publique ela no GitHub.</small>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ===================== UTILIDADES ===================== */
+const $ = (id) => document.getElementById(id);
+
+const BASE_SERVICES = [
+  "battery_service",
+  "heart_rate",
+  "device_information",
+  "generic_access",
+  "generic_attribute",
+  "0000fee7-0000-1000-8000-00805f9b34fb",
+  "0000ffe0-0000-1000-8000-00805f9b34fb",
+  "0000fff0-0000-1000-8000-00805f9b34fb",
+  "0000fd00-0000-1000-8000-00805f9b34fb",
+  "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+  "6e40fff0-b5a3-f393-e0a9-e50e24dcca9e",
+  "de5bf728-d711-4e47-af26-65e3012a5dc7"
+];
+
+const UUID_FULL = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function normUUID(u) {
+  u = (u || "").trim().toLowerCase();
+  if (/^[0-9a-f]{4}$/.test(u)) return "0000" + u + "-0000-1000-8000-00805f9b34fb";
+  if (/^[0-9a-f]{8}$/.test(u)) return u + "-0000-1000-8000-00805f9b34fb";
+  if (UUID_FULL.test(u)) return u;
+  return null;
+}
+
+function bytesToHex(dv) {
+  const out = [];
+  for (let i = 0; i < dv.byteLength; i++) {
+    out.push(dv.getUint8(i).toString(16).padStart(2, "0").toUpperCase());
+  }
+  return out.join(" ");
+}
+
+function bytesToAscii(dv) {
+  let s = "";
+  for (let i = 0; i < dv.byteLength; i++) {
+    const c = dv.getUint8(i);
+    s += (c >= 32 && c <= 126) ? String.fromCharCode(c) : ".";
+  }
+  return s;
+}
+
+function hexToBytes(str) {
+  const limpo = str.replace(/0x/gi, "").replace(/[^0-9a-fA-F]/g, "");
+  if (limpo.length === 0) throw new Error("Digite ao menos um byte em hexadecimal.");
+  if (limpo.length % 2 !== 0) throw new Error("Quantidade ímpar de dígitos HEX. Use pares (ex.: 01 0A FF).");
+  const arr = new Uint8Array(limpo.length / 2);
+  for (let i = 0; i < arr.length; i++) arr[i] = parseInt(limpo.substr(i * 2, 2), 16);
+  return arr;
+}
+
+function agora() {
+  const d = new Date();
+  const p = (n, l = 2) => String(n).padStart(l, "0");
+  return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "." + p(d.getMilliseconds(), 3);
+}
+
+/* ===================== ESTADO ===================== */
+const state = {
+  device: null,
+  server: null,
+  chars: new Map(),       // chave -> característica
+  selecionada: null,      // característica para envio
+  manual: false,          // desconexão manual
+  tentativas: 0,
+  linhasLog: []
+};
+
+/* ===================== LOG ===================== */
+function log(tipo, msg) {
+  const linha = "[" + agora() + "] " + tipo.toUpperCase() + " " + msg;
+  state.linhasLog.push(linha);
+  const el = document.createElement("div");
+  el.className = tipo.toLowerCase();
+  el.textContent = linha;
+  const box = $("log");
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ===================== STATUS ===================== */
+function setStatus(s) {
+  const dot = $("dot");
+  dot.className = "dot " + s;
+  const nomes = { desconectado: "Desconectado", conectando: "Conectando...", conectado: "Conectado" };
+  $("statusTxt").textContent = nomes[s] || s;
+  const conectado = s === "conectado";
+  $("btnDesconectar").disabled = !(conectado || s === "conectando");
+  $("btnReconectar").disabled = !state.device || conectado || s === "conectando";
+  $("btnEnviar").disabled = !(conectado && state.selecionada);
+}
+
+/* ===================== BUSCA ===================== */
+async function buscar() {
+  if (!navigator.bluetooth) {
+    $("avisoSuporte").style.display = "block";
+    return;
+  }
+  const nome = $("filtroNome").value.trim();
+  const extras = $("extraUuids").value.split(",").map(normUUID).filter(Boolean);
+  const optionalServices = Array.from(new Set(BASE_SERVICES.concat(extras)));
+
+  const opcoes = nome
+    ? { filters: [{ namePrefix: nome }], optionalServices: optionalServices }
+    : { acceptAllDevices: true, optionalServices: optionalServices };
+
+  try {
+    log("info", "Abrindo seletor de dispositivos...");
+    const dev = await navigator.bluetooth.requestDevice(opcoes);
+
+    if (state.device && state.device !== dev) {
+      state.device.removeEventListener("gattserverdisconnected", onDesconectou);
+    }
+    state.device = dev;
+    state.manual = false;
+    state.tentativas = 0;
+    dev.addEventListener("gattserverdisconnected", onDesconectou);
+    $("nomeDisp").textContent = "Dispositivo: " + (dev.name || "(sem nome)") + " | ID: " + dev.id;
+    log("info", "Selecionado: " + (dev.name || "(sem nome)"));
+    await conectar();
+  } catch (e) {
+    if (e && e.name === "NotFoundError") {
+      log("info", "Busca cancelada ou nenhum dispositivo escolhido.");
+    } else {
+      log("erro", "Falha na busca: " + (e && e.message ? e.message : e));
+    }
+    setStatus("desconectado");
+  }
+}
+
+/* ===================== CONEXÃO ===================== */
+async function conectar() {
+  if (!state.device) return;
+  setStatus("conectando");
+  try {
+    log("info", "Conectando ao GATT...");
+    state.server = await state.device.gatt.connect();
+    state.tentativas = 0;
+    setStatus("conectado");
+    log("info", "Conectado!");
+    await descobrirServicos();
+    await lerBateria();
+    await iniciarFrequencia();
+  } catch (e) {
+    log("erro", "Falha ao conectar: " + (e && e.message ? e.message : e));
+    setStatus("desconectado");
+    agendarReconexao();
+  }
+}
+
+function onDesconectou() {
+  log("erro", "Relógio desconectado.");
+  state.server = null;
+  setStatus("desconectado");
+  agendarReconexao();
+}
+
+function agendarReconexao() {
+  if (state.manual || !$("autoReconectar").checked || !state.device) return;
+  if (state.tentativas >= 5) {
+    log("erro", "Limite de 5 tentativas de reconexão atingido.");
+    return;
+  }
+  state.tentativas++;
+  const espera = 2000 * state.tentativas;
+  log("info", "Tentando reconectar em " + (espera / 1000) + "s (tentativa " + state.tentativas + "/5)...");
+  setTimeout(() => {
+    if (!state.manual && state.device && !(state.device.gatt && state.device.gatt.connected)) conectar();
+  }, espera);
+}
+
+function desconectar() {
+  state.manual = true;
+  if (state.device && state.device.gatt && state.device.gatt.connected) {
+    state.device.gatt.disconnect();
+  }
+  setStatus("desconectado");
+  log("info", "Desconectado manualmente.");
+}
+
+function reconectarManual() {
+  state.manual = false;
+  state.tentativas = 0;
+  conectar();
+}
+
+/* ===================== SERVIÇOS E CARACTERÍSTICAS ===================== */
+function propsTexto(p) {
+  const lista = [];
+  if (p.read) lista.push("read");
+  if (p.write) lista.push("write");
+  if (p.writeWithoutResponse) lista.push("writeWithoutResponse");
+  if (p.notify) lista.push("notify");
+  if (p.indicate) lista.push("indicate");
+  return lista.join(", ") || "(nenhuma)";
+}
+
+async function descobrirServicos() {
+  const cont = $("servicos");
+  cont.innerHTML = "";
+  state.chars.clear();
+  state.selecionada = null;
+  $("charSel").textContent = "nenhuma";
+
+  let servicos = [];
+  try {
+    servicos = await state.server.getPrimaryServices();
+  } catch (e) {
+    log("erro", "Não foi possível listar serviços: " + e.message);
+    cont.innerHTML = "<small>Nenhum serviço acessível. Tente adicionar UUIDs extras e buscar de novo.</small>";
+    return;
+  }
+
+  if (servicos.length === 0) {
+    cont.innerHTML = "<small>Nenhum serviço acessível. Adicione UUIDs extras e busque de novo.</small>";
+    return;
+  }
+
+  log("info", servicos.length + " serviço(s) encontrado(s).");
+
+  for (const svc of servicos) {
+    const bloco = document.createElement("div");
+    bloco.className = "svc";
+    const titulo = document.createElement("div");
+    titulo.className = "t";
+    titulo.textContent = "Serviço: " + svc.uuid;
+    bloco.appendChild(titulo);
+
+    let chars = [];
+    try {
+      chars = await svc.getCharacteristics();
+    } catch (e) {
+      log("erro", "Erro ao ler características de " + svc.uuid + ": " + e.message);
+    }
+
+    for (const ch of chars) {
+      const chave = svc.uuid + "/" + ch.uuid;
+      state.chars.set(chave, ch);
+
+      const c = document.createElement("div");
+      c.className = "chr";
+
+      const u = document.createElement("div");
+      u.className = "u";
+      u.textContent = ch.uuid;
+      c.appendChild(u);
+
+      const p = document.createElement("div");
+      p.className = "p";
+      p.textContent = "Propriedades: " + propsTexto(ch.properties);
+      c.appendChild(p);
+
+      const linha = document.createElement("div");
+      linha.className = "row";
+
+      if (ch.properties.read) {
+        const b = document.createElement("button");
+        b.className = "sec";
+        b.textContent = "Ler";
+        b.addEventListener("click", () => lerCaracteristica(ch));
+        linha.appendChild(b);
+      }
+      if (ch.properties.notify || ch.properties.indicate) {
+        const b = document.createElement("button");
+        b.className = "sec";
+        b.textContent = "Ativar notificações";
+        b.addEventListener("click", () => ativarNotificacoes(ch));
+        linha.appendChild(b);
+      }
+      if (ch.properties.write || ch.properties.writeWithoutResponse) {
+        const b = document.createElement("button");
+        b.textContent = "Usar p/ envio";
+        b.addEventListener("click", () => {
+          state.selecionada = ch;
+          $("charSel").textContent = ch.uuid;
+          $("btnEnviar").disabled = !(state.server && state.device.gatt.connected);
+          log("info", "Característica de envio: " + ch.uuid);
+        });
+        linha.appendChild(b);
+      }
+
+      c.appendChild(linha);
+      bloco.appendChild(c);
+    }
+    cont.appendChild(bloco);
+  }
+}
+
+/* ===================== LER / NOTIFICAR / ESCREVER ===================== */
+async function lerCaracteristica(ch) {
+  try {
+    const dv = await ch.readValue();
+    log("rx", ch.uuid + " | HEX: " + bytesToHex(dv) + " | ASCII: " + bytesToAscii(dv));
+  } catch (e) {
+    log("erro", "Erro ao ler " + ch.uuid + ": " + e.message);
+  }
+}
+
+function tratarNotificacao(ev) {
+  const ch = ev.target;
+  const dv = ch.value;
+  log("rx", ch.uuid + " | HEX: " + bytesToHex(dv) + " | ASCII: " + bytesToAscii(dv));
+}
+
+async function ativarNotificacoes(ch) {
+  try {
+    await ch.startNotifications();
+    ch.removeEventListener("characteristicvaluechanged", tratarNotificacao);
+    ch.addEventListener("characteristicvaluechanged", tratarNotificacao);
+    log("info", "Notificações ativadas em " + ch.uuid);
+  } catch (e) {
+    log("erro", "Erro ao ativar notificações em " + ch.uuid + ": " + e.message);
+  }
+}
+
+async function enviar() {
+  const ch = state.selecionada;
+  if (!ch) { log("erro", "Escolha uma característica de envio primeiro."); return; }
+  if (!state.device || !state.device.gatt.connected) { log("erro", "Relógio não está conectado."); return; }
+  try {
+    const bytes = hexToBytes($("hexEnvio").value);
+    if (ch.properties.writeWithoutResponse && typeof ch.writeValueWithoutResponse === "function") {
+      await ch.writeValueWithoutResponse(bytes);
+    } else if (typeof ch.writeValueWithResponse === "function") {
+      await ch.writeValueWithResponse(bytes);
+    } else {
+      await ch.writeValue(bytes);
+    }
+    const dv = new DataView(bytes.buffer);
+    log("tx", ch.uuid + " | HEX: " + bytesToHex(dv) + " | ASCII: " + bytesToAscii(dv));
+  } catch (e) {
+    log("erro", "Erro ao enviar: " + (e && e.message ? e.message : e));
+  }
+}
+
+/* ===================== BATERIA E FREQUÊNCIA CARDÍACA ===================== */
+async function lerBateria() {
+  try {
+    const svc = await state.server.getPrimaryService("battery_service");
+    const ch = await svc.getCharacteristic("battery_level");
+    const dv = await ch.readValue();
+    $("valBateria").textContent = dv.getUint8(0);
+    log("rx", "Bateria: " + dv.getUint8(0) + "%");
+  } catch (e) {
+    $("valBateria").textContent = "--";
+    log("info", "Serviço de bateria padrão indisponível.");
+  }
+}
+
+function lerFC(ev) {
+  const dv = ev.target.value;
+  const flags = dv.getUint8(0);
+  const bpm = (flags & 0x01) ? dv.getUint16(1, true) : dv.getUint8(1);
+  $("valFC").textContent = bpm;
+}
+
+async function iniciarFrequencia() {
+  try {
+    const svc = await state.server.getPrimaryService("heart_rate");
+    const ch = await svc.getCharacteristic("heart_rate_measurement");
+    await ch.startNotifications();
+    ch.removeEventListener("characteristicvaluechanged", lerFC);
+    ch.addEventListener("characteristicvaluechanged", lerFC);
+    ch.removeEventListener("characteristicvaluechanged", tratarNotificacao);
+    ch.addEventListener("characteristicvaluechanged", tratarNotificacao);
+    log("info", "Monitorando frequência cardíaca.");
+  } catch (e) {
+    $("valFC").textContent = "--";
+    log("info", "Serviço de frequência cardíaca padrão indisponível.");
+  }
+}
+
+/* ===================== LOG: COPIAR / BAIXAR / LIMPAR ===================== */
+async function copiarLog() {
+  const texto = state.linhasLog.join("\n");
+  try {
+    await navigator.clipboard.writeText(texto);
+    log("info", "Log copiado para a área de transferência.");
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = texto;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); log("info", "Log copiado."); }
+    catch (_) { log("erro", "Não foi possível copiar o log."); }
+    document.body.removeChild(ta);
+  }
+}
+
+function baixarLog() {
+  const blob = new Blob([state.linhasLog.join("\n")], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "log-smartwatch-" + Date.now() + ".txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function limparLog() {
+  state.linhasLog = [];
+  $("log").innerHTML = "";
+}
+
+/* ===================== IA (GEMINI) ===================== */
+async function analisarIA() {
+  const chave = $("apiKey").value.trim();
+  const modelo = $("modeloIA").value.trim() || "gemini-2.5-flash";
+  const saida = $("respostaIA");
+  if (!chave) { alert("Cole sua API Key do Google AI Studio."); return; }
+  if (state.linhasLog.length === 0) { alert("O log está vazio."); return; }
+
+  saida.style.display = "block";
+  saida.textContent = "Analisando...";
+
+  const prompt =
+    "Você é um especialista em engenharia reversa de protocolos Bluetooth Low Energy de smartwatches genéricos (ecossistema HryFine). " +
+    "Analise o log abaixo (TX = enviado ao relógio, RX = recebido do relógio, valores em HEX). " +
+    "Explique em português: 1) possíveis estruturas de pacote (cabeçalho, comando, tamanho, checksum), " +
+    "2) o que cada comando parece significar, 3) padrões repetidos, 4) próximos testes seguros para confirmar as hipóteses.\n\n" +
+    state.linhasLog.slice(-300).join("\n");
+
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
+      encodeURIComponent(modelo) + ":generateContent?key=" + encodeURIComponent(chave);
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    const dados = await resp.json();
+    if (!resp.ok) {
+      throw new Error((dados.error && dados.error.message) || ("HTTP " + resp.status));
+    }
+    const partes = dados.candidates && dados.candidates[0] && dados.candidates[0].content && dados.candidates[0].content.parts;
+    saida.textContent = partes ? partes.map((p) => p.text || "").join("") : "Resposta vazia.";
+  } catch (e) {
+    saida.textContent = "Erro: " + (e && e.message ? e.message : e);
+  }
+}
+
+/* ===================== INICIALIZAÇÃO ===================== */
+$("btnBuscar").addEventListener("click", buscar);
+$("btnReconectar").addEventListener("click", reconectarManual);
+$("btnDesconectar").addEventListener("click", desconectar);
+$("btnEnviar").addEventListener("click", enviar);
+$("btnCopiar").addEventListener("click", copiarLog);
+$("btnBaixar").addEventListener("click", baixarLog);
+$("btnLimpar").addEventListener("click", limparLog);
+$("btnIA").addEventListener("click", analisarIA);
+
+if (!navigator.bluetooth) {
+  $("avisoSuporte").style.display = "block";
+  $("btnBuscar").disabled = true;
+}
+setStatus("desconectado");
+log("info", "App pronto. Toque em Buscar relógio.");
+</script>
+</body>
+</html>
